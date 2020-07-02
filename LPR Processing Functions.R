@@ -2,55 +2,7 @@
 
 #=========================GENERAL USE FUNCTIONS=========================#
 
-
-#General function to see if element is present before clicking (prevents nosuchelement exceptions)
-ifVisiblethenClick <- function(element, selectorType = "css") {
-  
-  checkElement <- try(rD$findElement(using = selectorType, value = element))
-  
-  while(class(checkElement) == "try-error") {
-    
-    Sys.sleep(1)
-    
-    checkElement <- try(rD$findElement(using = selectorType, value = element))
-    
-  }
-  
-  rD$findElement(using = selectorType, value = element)$clickElement()
-  
-}
-
-
-
-#General function to see if page has loaded before next action taken (prevents nosuchelement exceptions)
-#NOT WORKING...NOT SURE WHY
-# isPageLoaded <- function(element) {
-#   
-#   #Check to make sure page loaded before proceeding
-#   pageCheck <- try(rD$findElement(using = "css", value = element))
-#   
-#   #If not loaded, loop and check until it is
-#   while(class(pageCheck) == "try-error") {
-#     
-#     Sys.sleep(1)
-#     
-#     pageCheck <- try(rD$findElement(using = "css", value = element))
-#     
-#   }
-# 
-#   
-# }
-
-
-
-#General function to accept an alert with wait time; default is 3 seconds
-acceptAlertwithWait <- function(wait = 3) {
-  
-  Sys.sleep(wait)
-  rD$acceptAlert()
-  Sys.sleep(wait)
-  
-}
+#General use functions now loaded from Github
 
 
 
@@ -62,7 +14,7 @@ selectDisease <- function(disease) {
   Sys.sleep(2)
   
   #Click on link to open filter selection
-  rD$findElement(using = "css", value = ".filterActive")$clickElement()
+  click(".filterActive")
   
   #Switch to the filter pop-up window
   windows_filter <- rD$getWindowHandles()   
@@ -71,24 +23,16 @@ selectDisease <- function(disease) {
   Sys.sleep(2)
   
   #Select 'Not Reviewed'
-  processStatusOptions <- rD$findElement(using = "css", value = "#casestatusid")$findChildElements(using = "css", value = "option" ) %>%
-    map_chr(., function(x) x$getElementText()[[1]])
-  
-  process_n_child <- which(grepl("Not Reviewed", processStatusOptions))
-  
-  rD$findElement(using = "css", value = paste0("#casestatusid > option:nth-child(", process_n_child, ")"))$clickElement()
+  process_n_child <- find_child_element("#casestatusid", "option", target = "Not Reviewed")
+  click(paste0("#casestatusid > option:nth-child(", process_n_child, ")"))
 
   
   #Select disease (using function argument)
-  diseaseOptions <- rD$findElement(using = "css", value = "#diseaseid")$findChildElements(using = "css", value = "option" ) %>%
-    map_chr(., function(x) x$getElementText()[[1]])
-  
-  disease_n_child <- which(grepl(disease, diseaseOptions))
-  
-  rD$findElement(using = "css", value = paste0("#diseaseid > option:nth-child(", disease_n_child, ")"))$clickElement()
+  disease_n_child <- find_child_element("#diseaseid", "option", target = disease)
+  click(paste0("#diseaseid > option:nth-child(", disease_n_child, ")"))
   
   #Apply filter
-  rD$findElement(using = "css", value = "input[name = \"filter\"]")$clickElement()
+  click(name.is("filter"))
   
   Sys.sleep(2)
   
@@ -98,27 +42,6 @@ selectDisease <- function(disease) {
   Sys.sleep(2)
   
 }
-
-
-
-#=========================FUNCTIONS FOR CASE REPORT PAGE=========================#
-
-#Click finding matches button and determine if any potential matches returned 
-#NOT WORKING, MIGHT BE BECAUSE OF IS PAGE LOADED FUNCTION, HAVEN'T TRIED WITHOUT
-# findMatches <- function() {
-#   
-#   #Find matches button present; click button
-#   rD$findElement(using = "css", value = "input[name = \"findmatchtop\"]")$clickElement()
-#   
-#   #Check to make sure Patient Match page loaded
-#   isPageLoaded(".pageDesc")
-#   
-#   #Checking to see if any matches found
-#   highestProb <- try(rD$findElement(using = "css", value = 'fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1)'))
-# 
-#   return(highestProb)
-#   
-# }
 
 
 
@@ -159,13 +82,13 @@ determinePatientMatch <- function(threshold_low) {
   
   #81%-99% match returned
   #Extract case name
-  case_name <- rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1)")$getElementText()[[1]]
+  case_name <- get_text("fieldset.fieldsetNameBlock:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1)")
   #Remove middle inital if present
   case_name <- strsplit(case_name, " ")[[1]] %>%
     .[nchar(.) > 1] %>%
     paste(., collapse = " ")
   #Extract case DOB
-  case_DOB <- rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(3)")$getElementText()[[1]]
+  case_DOB <- get_text("fieldset.fieldsetNameBlock:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(3)")
   
   patientMatchTable <- rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1)")  
   patientRows <- length(patientMatchTable$findChildElements(using = "css", "tbody > tr"))
@@ -173,12 +96,12 @@ determinePatientMatch <- function(threshold_low) {
   #Compare case name and DOB to potential matches
   for (i in 2:ifelse(patientRows == 3,3,4)) {
       
-    match_name <- rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",i,") > td:nth-child(2) > a:nth-child(1)"))$getElementText()[[1]]
+    match_name <- get_text(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",i,") > td:nth-child(2) > a:nth-child(1)"))
     match_name <- strsplit(match_name, " ")[[1]] %>%
       .[nchar(.) > 1] %>%
       paste(., collapse = " ")
     
-    match_DOB <- rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",i,") > td:nth-child(3)"))$getElementText()[[1]]
+    match_DOB <- get_text(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",i,") > td:nth-child(3)"))
       
     name_match <- any(grepl(case_name, match_name), grepl(match_name, case_name))
     dob_match <- match_DOB == case_DOB
@@ -202,13 +125,13 @@ determinePatientMatch <- function(threshold_low) {
 addNewPersonandCase <- function() {
   
   #Click add new person button
-  rD$findElement(using = "css", value = "input[name = \"add\"]")$clickElement()
+  click(name.is("add"))
   
   #Accept alert
   acceptAlertwithWait()
   
   #Close record
-  ifVisiblethenClick("input[name = \"close\"]")
+  ifVisiblethenClick(name.is("close"))
   
 }
 
@@ -218,7 +141,7 @@ addNewPersonandCase <- function() {
 exitMatchingPatients <- function() {
   
   #Cancel the matching page
-  rD$findElement(using = "css", value = "input[value = \"Cancel\"]")$clickElement()
+  click(value.is("Cancel"))
   
   #Close out of case report
   ifVisiblethenClick("#closetop")
@@ -243,7 +166,7 @@ determineCaseMatch <- function() {
   } 
   
   #Storing case report date
-  currentOnset <- rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(6)")$getElementText()[[1]] %>%
+  currentOnset <- get_text("fieldset.fieldsetNameBlock:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(6)") %>%
     lubridate::mdy()
   
   anySame <- vector("logical", diseaseEntryNum-1)
@@ -252,7 +175,7 @@ determineCaseMatch <- function() {
   for (i in 2:diseaseEntryNum) {
     
     #Storing match date
-    matchEvent <- rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",i,") > td:nth-child(2)"))$getElementText()[[1]] %>%
+    matchEvent <- get_text(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",i,") > td:nth-child(2)")) %>%
       lubridate::mdy()
     
     #Vector comparing match date to current report
@@ -282,9 +205,9 @@ determineCaseMatch <- function() {
     }
     
     #storing disposition and jurisdiction
-    jurisdictionMatchVal <- rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", row, ") > td:nth-child(5)"))$getElementText()[[1]]
-    dispoFirstVal <- rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", row, ") > td:nth-child(4)"))$getElementText()[[1]]
-    matchDate <- rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", row, ") > td:nth-child(2)"))$getElementText()[[1]] %>%
+    jurisdictionMatchVal <- get_text(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", row, ") > td:nth-child(5)"))
+    dispoFirstVal <- get_text(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", row, ") > td:nth-child(4)"))
+    matchDate <- get_text(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", row, ") > td:nth-child(2)")) %>%
       lubridate::mdy()
     
     
@@ -309,7 +232,7 @@ determineCaseMatch <- function() {
 mergePersonandAddCase <- function() {
   
   #Click button to merge person 
-  rD$findElement(using = "css", value = "input[name = \"addcase\"]")$clickElement()
+  click(name.is('addcase'))
   
   #Giving time for page to load  ####SUSCEPTIBLE TO SCRIPT FAILURE -- CLEAN IF PROBLEMS ARISE
   Sys.sleep(3)
@@ -318,13 +241,13 @@ mergePersonandAddCase <- function() {
   shortMerge()
   
   #Merge case again
-  rD$findElement(using = "css", value = "input[name = \"merge\"]")$clickElement()
+  click(name.is("merge"))
   
   #Accept alert
   acceptAlertwithWait()
   
   #Close record
-  ifVisiblethenClick("input[name = \"close\"]")
+  ifVisiblethenClick(name.is("close"))
   
 }
 
@@ -334,19 +257,19 @@ mergePersonandAddCase <- function() {
 mergeCase <- function() {
   
   #Click into current infection
-  rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", matchInfo$row, ") > td:nth-child(1) > a:nth-child(1)"))$clickElement()
+  click(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", matchInfo$row, ") > td:nth-child(1) > a:nth-child(1)"))
   
   ###On Merge Comparison page###
   longMerge()
   
   #Click button to merge case
-  rD$findElement(using = "css", value ="input[name = \"merge\"]")$clickElement()
+  click(name.is("merge"))
   
   #Accept alert
   acceptAlertwithWait()
   
   #Close record
-  ifVisiblethenClick("input[name = \"close\"]")
+  ifVisiblethenClick(name.is("close"))
   
 }
 
@@ -357,10 +280,10 @@ mergeCase <- function() {
 exitCaseMatching <- function() {
   
   #Cancel the Case Match page
-  rD$findElement(using = "css", value = "input[value = \"Cancel\"]")$clickElement() 
+  click(value.is("Cancel"))
   
   #Cancel the Patient Match page
-  ifVisiblethenClick("input[value = \"Cancel\"]")
+  ifVisiblethenClick(value.is("Cancel"))
   
   #Close out of the record
   ifVisiblethenClick("#closetop")
@@ -373,16 +296,16 @@ exitCaseMatching <- function() {
 transferSameInfection <- function() {
   
   #Click into current infection
-  rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", matchInfo$row, ") > td:nth-child(1) > a:nth-child(1)"))$clickElement()
+  click(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", matchInfo$row, ") > td:nth-child(1) > a:nth-child(1)"))
   
   #Transfer case
-  ifVisiblethenClick("input[value = \"Transfer\"]")
+  ifVisiblethenClick(value.is("Transfer"))
   
   #Accept alert
   acceptAlertwithWait()
   
   #Close record
-  ifVisiblethenClick("input[name = \"close\"]")
+  ifVisiblethenClick(name.is("close"))
   
   
 }
@@ -392,16 +315,16 @@ transferSameInfection <- function() {
 disregardCompletedSameInfection <- function() {
   
   #Click into current infection
-  rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", matchInfo$row, ") > td:nth-child(1) > a:nth-child(1)"))$clickElement()
+  click(paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(", matchInfo$row, ") > td:nth-child(1) > a:nth-child(1)"))
   
   #Disregard case
-  ifVisiblethenClick("input[name = \"disregard\"]")
+  ifVisiblethenClick(name.is("disregard"))
   
   #Accept alert
   acceptAlertwithWait()
   
   #Close record
-  ifVisiblethenClick("input[name = \"close\"]")
+  ifVisiblethenClick(name.is("close"))
   
 }
 
@@ -413,18 +336,18 @@ disregardCompletedSameInfection <- function() {
 #General function to use in long merge and short merge functions - if respository empty and match is not, click match
 ifEmptythenClick <- function(section, merge_row) {
   
-  matchEmpty <- grepl("Unknown|^ $", rD$findElement(using = "css", value = paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(3)"))$getElementText()[[1]])
-  repositoryEmpty <- grepl("Unknown|^ $", rD$findElement(using = "css", value = paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(4)"))$getElementText()[[1]])
+  matchEmpty <- grepl("Unknown|^ $", get_text(paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(3)")))
+  repositoryEmpty <- grepl("Unknown|^ $", get_text(paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(4)")))
   
   if (matchEmpty == FALSE & repositoryEmpty == TRUE) {
     
-    rD$findElement(using = "css", value = paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(1) > input:nth-child(1)"))
     
   }
   
   if (matchEmpty == FALSE & repositoryEmpty == FALSE & matchInfo$repositoryMatch == "older") {
     
-    rD$findElement(using = "css", value = paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(section, " > tbody:nth-child(1) > tr:nth-child(", merge_row, ") > td:nth-child(1) > input:nth-child(1)"))
     
   }
   
@@ -446,35 +369,35 @@ shortMerge <- function() {
   }
   
   #Processing phones
-  repositoryHome <- rD$findElement("css", paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(4)"))$getElementText()[[1]]
-  repositoryCell <- rD$findElement("css", paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(4)"))$getElementText()[[1]]
-  matchHome <- rD$findElement("css", paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(3)"))$getElementText()[[1]]
-  matchCell <- rD$findElement("css", paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(3)"))$getElementText()[[1]]
+  repositoryHome <- get_text(paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(4)"))
+  repositoryCell <- get_text(paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(4)"))
+  matchHome <- get_text(paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(3)"))
+  matchCell <- get_text(paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(3)"))
   
   if (matchHome != " " & matchHome != repositoryCell & matchInfo$repositoryMatch == "older") {
     
-    rD$findElement(using = "css", value = paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(1) > input:nth-child(1)"))
     
   } else if (matchHome != " " & matchHome != repositoryCell & repositoryHome == " " ) {
     
-    rD$findElement(using = "css", value = paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(9) > td:nth-child(1) > input:nth-child(1)"))
     
   }
   
   if (matchCell != " " & matchCell != repositoryHome & matchInfo$repositoryMatch == "older") {
     
-    rD$findElement(using = "css", value = paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(1) > input:nth-child(1)"))
     
   } else if (matchCell != " " & matchCell != repositoryHome & repositoryCell == " " ) {
     
-    rD$findElement(using = "css", value = paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(demographicCSS," > tbody:nth-child(1) > tr:nth-child(10) > td:nth-child(1) > input:nth-child(1)"))
     
   }
   
   #Processing address
   if (matchInfo$repositoryMatch == "older") { #means repository case is older, current report is newer info
 
-        rD$findElement(using = "css", value = paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(11) > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+        click(paste0(demographicCSS, " > tbody:nth-child(1) > tr:nth-child(11) > td:nth-child(1) > input:nth-child(1)"))
     
   } 
   
@@ -502,12 +425,12 @@ longMerge <- function() {
   }
   
   #Diagnosis Site
-  repositorySiteEmpty <- grepl("Unknown|^ $", rD$findElement(using = "css", value = paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(4)"))$getElementText()[[1]])
-  matchSiteEmpty <- grepl("Unknown|^ $", rD$findElement(using = "css", value = paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(3)"))$getElementText()[[1]])
+  repositorySiteEmpty <- grepl("Unknown|^ $", get_text(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(4)")))
+  matchSiteEmpty <- grepl("Unknown|^ $", get_text(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(3)")))
   
   if (repositorySiteEmpty == FALSE & matchSiteEmpty == FALSE & caseSource == "P") {
     
-    rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(1) > input:nth-child(1)"))
     
   } else {
     
@@ -518,20 +441,20 @@ longMerge <- function() {
   #Diagnosis Treatment and Start Date
   for (i in c(9, 11, 13)) {
     
-    repositoryRxNotUseful <- rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(4)"))$getElementText()[[1]] %>%
+    repositoryRxNotUseful <- get_text(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(4)")) %>%
       grepl("No Treatment|^ $", .)
-    matchRxEmpty <- rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(3)"))$getElementText()[[1]] %>%
+    matchRxEmpty <- get_text(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(3)")) %>%
       grepl("Unknown|^ $", .)
     
     if (matchRxEmpty == FALSE & repositoryRxNotUseful == TRUE) {
       
-      rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(1) > input:nth-child(1)"))$clickElement()
-      rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i + 1, ") > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+      click(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(1) > input:nth-child(1)"))
+      click(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i + 1, ") > td:nth-child(1) > input:nth-child(1)"))
       
     } else if (matchRxEmpty == FALSE & repositoryRxNotUseful == FALSE & matchInfo$repositoryMatch == "older") {
       
-      rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(1) > input:nth-child(1)"))$clickElement()
-      rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i + 1, ") > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+      click(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i, ") > td:nth-child(1) > input:nth-child(1)"))
+      click(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(", i + 1, ") > td:nth-child(1) > input:nth-child(1)"))
       
     }
     
@@ -539,12 +462,12 @@ longMerge <- function() {
   }
 
   #Diagnosis Comment -- accept Match if not empty and repository only contains test ordering info
-  repositoryCommentNotUseful <- rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(22) > td:nth-child(4)"))$getElementText()[[1]] %>%
+  repositoryCommentNotUseful <- get_text(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(22) > td:nth-child(4)")) %>%
     grepl("Test Ordering|^ $", .)
   
   if (repositoryCommentNotUseful == TRUE) {
     
-    rD$findElement("css", paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(22) > td:nth-child(1) > input:nth-child(1)"))$clickElement()
+    click(paste0(diagnosisCSS, " > tbody:nth-child(1) > tr:nth-child(22) > td:nth-child(1) > input:nth-child(1)"))
     
   }
   

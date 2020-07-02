@@ -5,72 +5,31 @@ library(stringr)
 library(keyring)
 library(methods)
 
-#key_set("idph_portal")  #sets Kelley's IDPH password
-#key_set("tobi_idph_portal")  #sets Tobi's IDPH password
+#key_set("idph_username") #set your IDPH web portal username -- only needs to be done once per computer
+#key_set("idph_portal")  #set your IDPH web portal password -- only needs to be done once per computer
 
 #Note: IE is preferred browser for INEDSS but requires special drivers for Selenium. 
-#Chrome has issues with switching tabs so proceeding with Firefox.
+#Chrome has issues with switching tabs so script will only work with the Firefox browser.
 
+#Set working directory
 setwd("S:/Enhanced Surveillance/General CD/Automated STI LPR Processing")
 
+#Load all supporting functions
 source('LPR Processing Functions.R')
+devtools::source_url("https://github.com/hsteinberg/ccdph-functions/blob/master/general-use-rselenium-functions.R?raw=TRUE")
+devtools::source_url("https://github.com/hsteinberg/ccdph-functions/blob/master/inedss-rselenium-functions.R?raw=TRUE")
 
 #sets probability threshold for when to add a new person (e.g. "no match") on Person Match page
 match_prob_low <- 80
-
-#stop session -- ALWAYS RUN THIS CODE AT THE END TO STOP THE SERVER, ALSO APPEARS AT END OF SCRIPT
-#remDr$server$stop() 
 
 
 #=================LOGGING INTO THE PORTAL AND NAVIGATING TO LAB PROVIDER=================#
 
 #Open selenium session
-remDr <- rsDriver(browser = "firefox")
+start_server()
 
-#remDr$server$error() #get errors if thrown
-
-#Extract the client for navigation
-rD <- remDr[['client']]
-
-#Navigating to log-in page
-rD$navigate("https://dph.partner.illinois.gov/my.policy")
-
-#Check for cookies error
-login_error <- try(rD$findElement("css", "#newSessionDIV > a:nth-child(1)"))
-if (class(login_error) != "try-error") {login_error$clickElement()}
-
-#Clicking link to access log-in screen
-rD$findElement("css", ".interaction_table_text_cell > a:nth-child(1)")$clickElement()
-
-#Pausing execution to give time to log in and load page
-Sys.sleep(5)
-
-#Enter credentials and log in
-rD$findElement(using = "css", value = "#input_1")$sendKeysToElement(list("kelley.bemis", key = "tab", key_get("idph_portal")))
-rD$findElement("css", "input[value = \"Logon\"]")$clickElement()
-
-#Pausing execution to give time to log in and load page
-Sys.sleep(10)
-
-#Mousing over applications button
-rD$findElement(using = "xpath", value = '//*[@id="zz6_RootAspMenu"]/li/ul/li[1]/a/span/span')$mouseMoveToLocation()
-
-#Finding production apps button
-rD$findElement(using = "xpath", value = '//*[@id="zz6_RootAspMenu"]/li/ul/li[1]/a')$clickElement()
-
-#Finding INEDSS buttons  -- XPATH WILL BE DIFFERENT DEPENDING ON APPS USER HAS
-ifVisiblethenClick('//*[@id="column"]/table[5]/tbody/tr/td[2]/a', selectorType = "xpath") #Kelley
-#ifVisiblethenClick('//*[@id="column"]/table[3]/tbody/tr/td[2]/a', selectorType = "xpath") #Tobi
-
-#Pausing execution to give time to load page
-Sys.sleep(10)
-
-#Switching focus to INEDSS tab   
-windows <- rD$getWindowHandles()   
-rD$switchToWindow(windows[[2]])
-
-#Clicking login button
-rD$findElement(using = "css", value = "input[name = \"login\"]")$clickElement()
+#Log in to INEDSS
+login_inedss()
 
 #Clicking into lab provider
 ifVisiblethenClick("a[target = \"Lab Window\"]")
@@ -105,7 +64,7 @@ nextCase <- try(rD$findElement(using = "css", value = ".indessTable > tbody:nth-
 if (class(nextCase) != "try-error") {
   
   #Storing report source for use on long merge page if needed
-  caseSource <- rD$findElement(using = "css", value = ".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(6)")$getElementText()[[1]]
+  caseSource <- get_text(".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(6)")
   
   nextCase$clickElement()
   
@@ -117,40 +76,24 @@ if (class(nextCase) != "try-error") {
 }
 
 
-#Check to make sure Case Report page loaded       ##NOTE: isPageLoaded function is in source script but not working correctly and not sure why, troubleshoot later###
-#isPageLoaded("#closetop")    
-pageCheck <- try(rD$findElement(using = "css", value = "#closetop"))
-while(class(pageCheck) == "try-error") {
-  
-  Sys.sleep(1)
-  
-  pageCheck <- try(rD$findElement(using = "css", value = "#closetop"))
-  
-}
+#Check to make sure Case Report page loaded       
+isPageLoaded("#closetop")    
 
 #Clicking either find matches or close if remerge button is present
-remergeButton <- try(rD$findElement(using = "css", value = "input[value = \"Remerge\"]"))
+remergeButton <- try(rD$findElement(using = "css", value.is("Remerge")))
 
 if (class(remergeButton) != "try-error") {
   
   #Remerge button present; click cancel
-  rD$findElement(using = "css", value = "#closetop")$clickElement()
+  click("#closetop")
   
 } else {
   
   #Find matches button present; click button
-  rD$findElement(using = "css", value = "input[name = \"findmatchtop\"]")$clickElement()
+  click(name.is("findmatchtop"))
   
   #Check to make sure Patient Match page loaded
-  #isPageLoaded(".pageDesc")
-  pageCheck <- try(rD$findElement(using = "css", value = ".pageDesc"))
-  while(class(pageCheck) == "try-error") {
-    
-    Sys.sleep(1)
-    
-    pageCheck <- try(rD$findElement(using = "css", value = ".pageDesc"))
-    
-  }
+  isPageLoaded(".pageDesc")
 
   #Determine if patient match has been found on the page
   matchStatus <- determinePatientMatch(match_prob_low)
@@ -225,18 +168,7 @@ if (class(remergeButton) != "try-error") {
 #Sys.sleep(18)
   
 #wait for main page to load again after processing
-mainPage <- try(rD$findElement(using = "css", value = ".filterActive"))
-mainPageWait <- 0
-
-while(class(mainPage) == "try-error" & mainPageWait <120) {
-  
-  Sys.sleep(1)
-  
-  mainPageWait <- mainPageWait + 1
-  
-  mainPage <- try(rD$findElement(using = "css", value = ".filterActive"))
-  
-}
+isPageLoaded(".filterActive")
 
 }#end of overall loop to go through cases
 
@@ -258,7 +190,7 @@ repeat {
   if (class(nextCase) != "try-error") {
     
     #Storing report source for use on long merge page if needed
-    caseSource <- rD$findElement(using = "css", value = ".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(6)")$getElementText()[[1]]
+    caseSource <- get_text(".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(6)")
     
     nextCase$clickElement()
     
@@ -270,40 +202,24 @@ repeat {
   }
   
   
-  #Check to make sure Case Report page loaded       ##NOTE: isPageLoaded function is in source script but not working correctly and not sure why, troubleshoot later###
-  #isPageLoaded("#closetop")    
-  pageCheck <- try(rD$findElement(using = "css", value = "#closetop"))
-  while(class(pageCheck) == "try-error") {
-    
-    Sys.sleep(1)
-    
-    pageCheck <- try(rD$findElement(using = "css", value = "#closetop"))
-    
-  }
+  #Check to make sure Case Report page loaded       
+  isPageLoaded("#closetop")    
   
   #Clicking either find matches or close if remerge button is present
-  remergeButton <- try(rD$findElement(using = "css", value = "input[value = \"Remerge\"]"))
+  remergeButton <- try(rD$findElement(using = "css", value.is("Remerge")))
   
   if (class(remergeButton) != "try-error") {
     
     #Remerge button present; click cancel
-    rD$findElement(using = "css", value = "#closetop")$clickElement()
+    click("#closetop")
     
   } else {
     
     #Find matches button present; click button
-    rD$findElement(using = "css", value = "input[name = \"findmatchtop\"]")$clickElement()
+    click(name.is("findmatchtop"))
     
     #Check to make sure Patient Match page loaded
-    #isPageLoaded(".pageDesc")
-    pageCheck <- try(rD$findElement(using = "css", value = ".pageDesc"))
-    while(class(pageCheck) == "try-error") {
-      
-      Sys.sleep(1)
-      
-      pageCheck <- try(rD$findElement(using = "css", value = ".pageDesc"))
-      
-    }
+    isPageLoaded(".pageDesc")
     
     #Determine if patient match has been found on the page
     matchStatus <- determinePatientMatch(match_prob_low)
@@ -333,6 +249,7 @@ repeat {
         diseaseMatchTable <- try(rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1)"))
         
       }
+      
       
       #Determining if a case match exists and storing relevant info
       matchInfo <- determineCaseMatch()
@@ -377,18 +294,7 @@ repeat {
   #Sys.sleep(18)
   
   #wait for main page to load again after processing
-  mainPage <- try(rD$findElement(using = "css", value = ".filterActive"))
-  mainPageWait <- 0
-  
-  while(class(mainPage) == "try-error" & mainPageWait <120) {
-    
-    Sys.sleep(1)
-    
-    mainPageWait <- mainPageWait + 1
-    
-    mainPage <- try(rD$findElement(using = "css", value = ".filterActive"))
-    
-  }
+  isPageLoaded(".filterActive")
   
 }#end of overall loop to go through cases
 
