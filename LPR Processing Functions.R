@@ -11,7 +11,7 @@
 
 selectDisease <- function(disease) {
   
-  Sys.sleep(2)
+  Sys.sleep(5)
   
   #Click on link to open filter selection
   click(".filterActive")
@@ -20,7 +20,7 @@ selectDisease <- function(disease) {
   windows_filter <- rD$getWindowHandles()   
   rD$switchToWindow(windows_filter[[4]])
   
-  Sys.sleep(2)
+  Sys.sleep(5)
   
   #Select 'Not Reviewed'
   process_n_child <- find_child_element("#casestatusid", "option", target = "Not Reviewed")
@@ -34,12 +34,12 @@ selectDisease <- function(disease) {
   #Apply filter
   click(name.is("filter"))
   
-  Sys.sleep(2)
+  Sys.sleep(5)
   
   #Switch back to LPR window
   rD$switchToWindow(windows_filter[[3]])
   
-  Sys.sleep(2)
+  Sys.sleep(5)
   
 }
 
