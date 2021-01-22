@@ -169,6 +169,13 @@ determineCaseMatch <- function() {
   currentOnset <- get_text("fieldset.fieldsetNameBlock:nth-child(2) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(6)") %>%
     lubridate::mdy()
   
+  #if current event/onset date is missing, exit out and leave for human review
+  if (is.na(currentOnset)) {
+    
+    return(list(caseMatchFound = "unclear match", row = NA, repositoryMatch = NA)) 
+    
+  }
+  
   anySame <- vector("logical", diseaseEntryNum-1)
   anyNewer <- vector("logical", diseaseEntryNum-1)
   
