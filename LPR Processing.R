@@ -179,7 +179,7 @@ isPageLoaded(".filterActive")
 selectDisease("Chlamydia")
 
 #Give page time to load
-Sys.sleep(5) 
+Sys.sleep(10) 
 
 #Exact repeat of loop above
 repeat {
