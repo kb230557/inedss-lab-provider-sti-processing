@@ -199,7 +199,7 @@ determineCaseMatch <- function() {
   }
   
   #Steps to execute if cases are present (with events dates) to determine a match
-  if (any(anySame)) {
+  if (any(anySame, na.rm = T)) {
     
     #identifying row of match 
     row <- which(anySame) + 1
@@ -223,6 +223,10 @@ determineCaseMatch <- function() {
                 jurisdictionMatchVal = jurisdictionMatchVal,
                 dispoFirstVal = dispoFirstVal,
                 repositoryMatch = ifelse((matchDate - currentOnset) >= 0, "newer", "older")))
+    
+  } else if (anyNA(anySame)) {  #exit out in rare cases where there is no match but there is a case missing event date
+    
+    return(list(caseMatchFound = "unclear match", row = NA, repositoryMatch = NA)) 
     
   } else {  #no match on cases
     
