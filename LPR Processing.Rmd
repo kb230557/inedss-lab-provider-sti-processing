@@ -1,0 +1,325 @@
+---
+title: ''
+output: html_document
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(RSelenium)
+library(magrittr)
+library(purrr)
+library(stringr)
+library(keyring)
+library(methods)
+
+#key_set("idph_username") #set your IDPH web portal username -- only needs to be done once per computer
+#key_set("idph_portal")  #set your IDPH web portal password -- only needs to be done once per computer
+
+#Note: IE is preferred browser for INEDSS but requires special drivers for Selenium. 
+#Chrome has issues with switching tabs so script will only work with the Firefox browser.
+
+#Set working directory
+#setwd("S:/Enhanced Surveillance/General CD/Automated STI LPR Processing")
+
+#Load all supporting functions
+source('LPR Processing Functions.R')
+devtools::source_url("https://github.com/hsteinberg/ccdph-functions/blob/master/general-use-rselenium-functions.R?raw=TRUE")
+devtools::source_url("https://github.com/hsteinberg/ccdph-functions/blob/master/inedss-rselenium-functions.R?raw=TRUE")
+
+#sets probability threshold for when to add a new person (e.g. "no match") on Person Match page
+match_prob_low <- 80
+
+```
+
+## LOGGING INTO THE PORTAL AND NAVIGATING TO LAB PROVIDER
+
+```{r login}
+
+#Open selenium session
+start_server()
+
+#Log in to INEDSS
+login_inedss()
+
+#Clicking into lab provider
+ifVisiblethenClick("a[target = \"Lab Window\"]")
+
+#Pausing execution to give time to load page
+Sys.sleep(10)
+
+#Switching focus to LPR tab 
+windows_lpr <- rD$getWindowHandles()
+rD$switchToWindow(windows_lpr[[3]])
+
+```
+
+## LOOP THROUGH GONORRHEA CASES
+
+```{r gonorrhea}
+
+#Select which disease to work on (spelling and capitalization must be correct)
+selectDisease("Gonorrhea")
+
+#Give page time to load
+Sys.sleep(5) 
+
+
+repeat {
+
+#Checking to make sure case available to process, if not stop script
+nextCase <- try(rD$findElement(using = "css", value = ".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(1) > a:nth-child(1)"))
+  
+if (class(nextCase) != "try-error") {
+  
+  #Storing report source for use on long merge page if needed
+  caseSource <- get_text(".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(6)")
+  
+  nextCase$clickElement()
+  
+} else {
+  
+  #stop("All cases processed")
+  break
+  
+}
+
+
+#Check to make sure Case Report page loaded       
+isPageLoaded("#closetop")    
+
+#Clicking either find matches or close if remerge button is present
+remergeButton <- try(rD$findElement(using = "css", value.is("Remerge")))
+
+if (class(remergeButton) != "try-error") {
+  
+  #Remerge button present; click cancel
+  click("#closetop")
+  
+} else {
+  
+  #Find matches button present; click button
+  click(name.is("findmatchtop"))
+  
+  #Check to make sure Patient Match page loaded
+  isPageLoaded(".pageDesc")
+
+  #Determine if patient match has been found on the page
+  matchStatus <- determinePatientMatch(match_prob_low)
+
+  #Execute steps based on whether patient found
+  if (matchStatus$patientMatchFound == "no match") {
+  
+    #If no patient matches, add new person and case
+    addNewPersonandCase()
+  
+  } else if (matchStatus$patientMatchFound == "unclear") {
+    
+    #If patient match is unclear, cancel the matching page
+    exitMatchingPatients()
+    
+  } else { #should be patientMatchFound == "match"
+  
+      #clicking match entry
+      rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",matchStatus$row,") > td:nth-child(2) > a:nth-child(1)"))$clickElement()
+
+      #Checking to see if Case Match page loaded
+      diseaseMatchTable <- try(rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1)"))
+      while(class(diseaseMatchTable) == "try-error") {
+        
+        Sys.sleep(1)
+        
+        diseaseMatchTable <- try(rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1)"))
+        
+      }
+      
+      
+      #Determining if a case match exists and storing relevant info
+      matchInfo <- determineCaseMatch()
+      
+      if (matchInfo$caseMatchFound == "no match") {
+        
+        mergePersonandAddCase()
+        
+      } else if (matchInfo$caseMatchFound == "unclear match") {
+        
+        exitCaseMatching()
+        
+      } else {  #should only be if case match found
+        
+        if (grepl("Cook", matchInfo$jurisdictionMatchVal)){
+            
+            if (matchInfo$dispoFirstVal == "Completed") {  #same case, investigation closed
+              
+              disregardCompletedSameInfection()
+              
+            } else {  #same case, investigation open 
+              
+              mergeCase()
+              
+            }
+      
+        } else {  #OOJ
+          
+          transferSameInfection()
+          
+        }
+        
+      }
+ 
+  
+  
+} #ifmatches found at all closure
+
+
+} #remerge / find matches if
+
+#Sys.sleep(18)
+  
+#wait for main page to load again after processing
+isPageLoaded(".filterActive")
+
+}#end of overall loop to go through cases
+
+```
+
+## LOOP THROUGH CHLAMYDIA CASES
+
+```{r chlamydia}
+
+#Select which disease to work on (spelling and capitalization must be correct)
+selectDisease("Chlamydia")
+
+#Give page time to load
+Sys.sleep(10) 
+
+#Exact repeat of loop above
+repeat {
+  
+  #Checking to make sure case available to process, if not stop script
+  nextCase <- try(rD$findElement(using = "css", value = ".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(1) > a:nth-child(1)"))
+  
+  if (class(nextCase) != "try-error") {
+    
+    #Storing report source for use on long merge page if needed
+    caseSource <- get_text(".indessTable > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(6)")
+    
+    nextCase$clickElement()
+    
+  } else {
+    
+    stop("All cases processed")
+    #break
+    
+  }
+  
+  
+  #Check to make sure Case Report page loaded       
+  isPageLoaded("#closetop")    
+  
+  #Clicking either find matches or close if remerge button is present
+  remergeButton <- try(rD$findElement(using = "css", value.is("Remerge")))
+  
+  if (class(remergeButton) != "try-error") {
+    
+    #Remerge button present; click cancel
+    click("#closetop")
+    
+  } else {
+    
+    #Find matches button present; click button
+    click(name.is("findmatchtop"))
+    
+    #Check to make sure Patient Match page loaded
+    isPageLoaded(".pageDesc")
+    
+    #Determine if patient match has been found on the page
+    matchStatus <- determinePatientMatch(match_prob_low)
+    
+    #Execute steps based on whether patient found
+    if (matchStatus$patientMatchFound == "no match") {
+      
+      #If no patient matches, add new person and case
+      addNewPersonandCase()
+      
+    } else if (matchStatus$patientMatchFound == "unclear") {
+      
+      #If patient match is unclear, cancel the matching page
+      exitMatchingPatients()
+      
+    } else { #should be patientMatchFound == "match"
+      
+      #clicking match entry
+      rD$findElement(using = "css", value = paste0("fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(1) > td:nth-child(1) > table:nth-child(1) > tbody:nth-child(1) > tr:nth-child(",matchStatus$row,") > td:nth-child(2) > a:nth-child(1)"))$clickElement()
+      
+      #Checking to see if Case Match page loaded
+      diseaseMatchTable <- try(rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1)"))
+      while(class(diseaseMatchTable) == "try-error") {
+        
+        Sys.sleep(1)
+        
+        diseaseMatchTable <- try(rD$findElement(using = "css", value = "fieldset.fieldsetNameBlock:nth-child(4) > table:nth-child(2) > tbody:nth-child(1) > tr:nth-child(2) > td:nth-child(1) > table:nth-child(1)"))
+        
+      }
+      
+      
+      #Determining if a case match exists and storing relevant info
+      matchInfo <- determineCaseMatch()
+      
+      if (matchInfo$caseMatchFound == "no match") {
+        
+        mergePersonandAddCase()
+        
+      } else if (matchInfo$caseMatchFound == "unclear match") {
+        
+        exitCaseMatching()
+        
+      } else {  #should only be if case match found
+        
+        if (grepl("Cook", matchInfo$jurisdictionMatchVal)){
+          
+          if (matchInfo$dispoFirstVal == "Completed") {  #same case, investigation closed
+            
+            disregardCompletedSameInfection()
+            
+          } else {  #same case, investigation open 
+            
+            mergeCase()
+            
+          }
+          
+        } else {  #OOJ
+          
+          transferSameInfection()
+          
+        }
+        
+      }
+      
+      
+      
+    } #ifmatches found at all closure
+    
+    
+  } #remerge / find matches if
+  
+  #Sys.sleep(18)
+  
+  #wait for main page to load again after processing
+  isPageLoaded(".filterActive")
+  
+}#end of overall loop to go through cases
+
+```
+
+## STOP SERVER
+
+```{r}
+
+remDr$server$stop() #stop session
+
+```
+
+
