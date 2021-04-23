@@ -39,7 +39,10 @@ match_prob_low <- 80
 ```{r login}
 
 #Open selenium session
-start_server()
+remDr <- rsDriver(browser = "firefox")
+
+#Extract the client for navigation
+rD <- remDr[['client']]
 
 #Log in to INEDSS
 login_inedss()

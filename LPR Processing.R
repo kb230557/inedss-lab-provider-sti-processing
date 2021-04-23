@@ -26,7 +26,10 @@ match_prob_low <- 80
 #=================LOGGING INTO THE PORTAL AND NAVIGATING TO LAB PROVIDER=================#
 
 #Open selenium session
-start_server()
+remDr <- rsDriver(browser = "firefox")
+
+#Extract the client for navigation
+rD <- remDr[['client']]
 
 #Log in to INEDSS
 login_inedss()
