@@ -26,8 +26,8 @@ library(methods)
 
 #Load all supporting functions
 source('LPR Processing Functions.R')
-devtools::source_url("https://github.com/hsteinberg/ccdph-functions/blob/master/general-use-rselenium-functions.R?raw=TRUE")
-devtools::source_url("https://github.com/hsteinberg/ccdph-functions/blob/master/inedss-rselenium-functions.R?raw=TRUE")
+devtools::source_url("https://github.com/Cook-County-Department-of-Public-Health/ccdph-functions/blob/master/general-use-rselenium-functions.R?raw=TRUE")
+devtools::source_url("https://github.com/Cook-County-Department-of-Public-Health/ccdph-functions/blob/master/inedss-rselenium-functions.R?raw=TRUE")
 
 #sets probability threshold for when to add a new person (e.g. "no match") on Person Match page
 match_prob_low <- 80
@@ -39,7 +39,7 @@ match_prob_low <- 80
 ```{r login}
 
 #Open selenium session
-remDr <- rsDriver(browser = "firefox")
+remDr <- rsDriver(browser = "firefox", chromever = NULL)
 
 #Extract the client for navigation
 rD <- remDr[['client']]
